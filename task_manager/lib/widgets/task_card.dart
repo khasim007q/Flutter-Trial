@@ -8,10 +8,12 @@ class TaskCard extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback onDelete;
   final bool isBlocked;
+  final int index;
 
   const TaskCard({
     super.key,
     required this.task,
+    required this.index,
     required this.onTap,
     required this.onDelete,
     this.isBlocked = false,
@@ -73,7 +75,7 @@ class TaskCard extends StatelessWidget {
                             ),
                           Expanded(
                             child: Text(
-                              task.title,
+                              '${index + 1}. ${task.title}',
                               style: theme.textTheme.titleMedium?.copyWith(
                                 fontSize: 18,
                                 fontWeight: FontWeight.bold,

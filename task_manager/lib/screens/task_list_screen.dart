@@ -157,6 +157,7 @@ class _TaskListScreenState extends State<TaskListScreen> {
 
                             return TaskCard(
                               task: task,
+                              index: index,
                               isBlocked: isBlocked,
                               onTap: () {
                                 provider.loadDraftFromTask(task);

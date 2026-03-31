@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/task_provider.dart';
 import '../models/task.dart';
+import '../services/api_service.dart';
 
 class TaskFormScreen extends StatefulWidget {
   const TaskFormScreen({super.key});
@@ -14,6 +15,7 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
   final _formKey = GlobalKey<FormState>();
   late TextEditingController _titleController;
   late TextEditingController _descController;
+  Future<List<Task>>? _allTasksFuture;
 
   @override
   void initState() {
@@ -21,6 +23,7 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
     final provider = context.read<TaskProvider>();
     _titleController = TextEditingController(text: provider.draftTitle);
     _descController = TextEditingController(text: provider.draftDescription);
+    _allTasksFuture = ApiService().fetchTasks();
 
     _titleController.addListener(() {
       provider.updateDraft(title: _titleController.text);
@@ -41,11 +44,6 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
   Widget build(BuildContext context) {
     final provider = context.watch<TaskProvider>();
     final isEditing = provider.draftId != null;
-
-    // Filter out the current task so it can't block itself
-    final availableBlockers = provider.tasks
-        .where((t) => t.id != provider.draftId)
-        .toList();
 
     return Scaffold(
       appBar: AppBar(title: Text(isEditing ? 'Edit Task' : 'New Task')),
@@ -142,26 +140,51 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
               const SizedBox(height: 16),
 
               // Blocked By Dropdown
-              DropdownButtonFormField<int?>(
-                initialValue: provider.draftBlockedById,
-                decoration: const InputDecoration(
-                  labelText: 'Blocked By (Optional)',
-                  border: OutlineInputBorder(),
-                ),
-                items: [
-                  const DropdownMenuItem<int?>(
-                    value: null,
-                    child: Text('None'),
-                  ),
-                  ...availableBlockers.map(
-                    (task) => DropdownMenuItem(
-                      value: task.id,
-                      child: Text(task.title),
+              FutureBuilder<List<Task>>(
+                future: _allTasksFuture,
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const LinearProgressIndicator();
+                  }
+                  
+                  final allTasks = snapshot.data ?? provider.tasks;
+                  final availableBlockers = allTasks
+                      .where((t) => t.id != provider.draftId && t.status != 'Done')
+                      .toList();
+
+                  int? safeBlockedById = provider.draftBlockedById;
+                  if (safeBlockedById != null &&
+                      !availableBlockers.any((t) => t.id == safeBlockedById)) {
+                    safeBlockedById = null;
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      if (provider.draftBlockedById != null) {
+                        provider.updateDraft(blockedById: null);
+                      }
+                    });
+                  }
+
+                  return DropdownButtonFormField<int?>(
+                    initialValue: safeBlockedById,
+                    decoration: const InputDecoration(
+                      labelText: 'Blocked By (Optional)',
+                      border: OutlineInputBorder(),
                     ),
-                  ),
-                ],
-                onChanged: (value) {
-                  provider.updateDraft(blockedById: value);
+                    items: [
+                      const DropdownMenuItem<int?>(
+                        value: null,
+                        child: Text('None'),
+                      ),
+                      ...availableBlockers.map(
+                        (task) => DropdownMenuItem<int?>(
+                          value: task.id,
+                          child: Text(task.title),
+                        ),
+                      ),
+                    ],
+                    onChanged: (value) {
+                      provider.updateDraft(blockedById: value);
+                    },
+                  );
                 },
               ),
               const SizedBox(height: 16),
